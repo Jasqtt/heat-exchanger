@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bicol University - Chemical Engineering Department: Double Pipe Heat Exchanger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --blush: #FFF5F5;   /* page background */
+    --peach: #F7D6D0;   /* soft panels */
+    --rose:  #E2B4BD;   /* accents */
+    --ink:   #4A4A4A;   /* text + active state */
+    --muted: #7a6a6d;
+    --card:  #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: var(--blush);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 26px 18px 44px;
+  }
+
+  header { text-align: center; }
+  .eyebrow {
+    display: inline-block;
+    margin: 0 0 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--peach);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.35;
+  }
+  h1 {
+    margin: 0;
+    font-size: 1.9rem;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .hero {
+    margin: 20px 0 22px;
+    padding: 18px 12px;
+    border-radius: 22px;
+    background:
+      radial-gradient(120% 70% at 50% 40%, #fff 0%, var(--peach) 70%, var(--rose) 130%);
+    display: flex;
+    justify-content: center;
+  }
+  .hero img {
+    display: block;
+    height: min(46vh, 430px);
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 14px rgba(74,74,74,.22));
+  }
+
+  .sub {
+    margin: 0 0 12px;
+    font-size: 0.95rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  .buttons { display: grid; gap: 12px; }
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 15px 16px;
+    border: 1.5px solid var(--peach);
+    border-radius: 16px;
+    background: var(--card);
+    color: var(--ink);
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .15s, box-shadow .15s, background .15s, transform .05s;
+  }
+  .btn:active { transform: scale(0.99); }
+  .btn:focus-visible { outline: 3px solid var(--rose); outline-offset: 2px; }
+  .btn .num {
+    flex: 0 0 auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--rose);
+    color: var(--ink);
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+  .btn .play {
+    margin-left: auto;
+    flex: 0 0 auto;
+    width: 0; height: 0;
+    border-left: 11px solid var(--rose);
+    border-top: 7px solid transparent;
+    border-bottom: 7px solid transparent;
+  }
+  .btn[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(74,74,74,.18);
+  }
+  .btn[aria-pressed="true"] .num { background: var(--peach); }
+  .btn[aria-pressed="true"] .play { border-left-color: var(--peach); }
+
+  .player {
+    margin-top: 18px;
+    background: var(--card);
+    border: 1.5px solid var(--peach);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .player[hidden] { display: none; }
+  .player-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px;
+    background: var(--peach);
+    font-weight: 700;
+  }
+  .close {
+    border: 0; background: transparent; font: inherit;
+    color: var(--ink); cursor: pointer; padding: 4px 6px; font-size: 0.92rem; font-weight: 600;
+  }
+  video { display: block; width: 100%; max-height: 70vh; background: #000; }
+  video[hidden] { display: none; }
+  .soon {
+    padding: 44px 18px;
+    text-align: center;
+    color: var(--muted);
+    background: var(--blush);
+  }
+  .soon[hidden] { display: none; }
+  footer {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+
+  /* ---------- Fun facts ---------- */
+  .page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "main" "left" "right";
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 0 18px 44px;
+  }
+  .page > main { grid-area: main; max-width: none; padding: 26px 0 8px; }
+  .facts-left  { grid-area: left; }
+  .facts-right { grid-area: right; }
+  .facts { display: grid; gap: 12px; align-content: start; margin-top: 12px; }
+  .facts-heading {
+    margin: 22px 0 0;
+    text-align: center;
+    font-size: 1.05rem;
+    font-weight: 800;
+  }
+  .fact {
+    position: relative;
+    padding: 14px 16px 15px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1.5px solid var(--peach);
+    box-shadow: 0 4px 12px rgba(226,180,189,.25);
+  }
+  .fact .tag {
+    display: inline-block;
+    margin-bottom: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--rose);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+  .fact h2 { margin: 0 0 4px; font-size: 1rem; font-weight: 700; line-height: 1.25; }
+  .fact p  { margin: 0; font-size: 0.9rem; line-height: 1.45; color: #5d5456; }
+  .facts-right .facts-heading { display: none; }
+  footer { grid-column: 1 / -1; }
+
+  @media (min-width: 1100px) {
+    .page {
+      max-width: 1240px;
+      grid-template-columns: minmax(0, 1fr) 560px minmax(0, 1fr);
+      grid-template-areas: "left main right";
+      column-gap: 36px;
+      padding-bottom: 44px;
+    }
+    .facts-left, .facts-right {
+      position: sticky;
+      top: 26px;
+      align-self: start;
+      padding-top: 26px;
+    }
+    .facts-heading { margin: 0 0 2px; text-align: left; }
+    .facts-right .facts-heading { display: block; visibility: hidden; }
+    .fact:nth-child(odd)  { transform: rotate(-1.2deg); }
+    .fact:nth-child(even) { transform: rotate(1deg); }
+    .facts-right .fact:nth-child(odd)  { transform: rotate(1.2deg); }
+    .facts-right .fact:nth-child(even) { transform: rotate(-1deg); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+<main>
+  <header>
+    <p class="eyebrow">Bicol University - Chemical Engineering Department:</p>
+    <h1>Double Pipe Heat Exchanger.</h1>
+  </header>
+
+  <div class="hero">
+    <img src="img/heat-exchanger.webp" alt="The department's double pipe heat exchanger, seen from above">
+  </div>
+
+  <p class="sub">Tap a topic to watch the video.</p>
+
+  <div class="buttons" role="group" aria-label="Videos">
+    <button class="btn" data-video="videos/how-it-works.mp4" aria-pressed="false">
+      <span class="num">1</span><span>How does this work?</span><span class="play"></span>
+    </button>
+    <button class="btn" data-video="videos/counterflow.mp4" aria-pressed="false">
+      <span class="num">2</span><span>Counterflow</span><span class="play"></span>
+    </button>
+    <button class="btn" data-video="videos/cocurrent.mp4" aria-pressed="false">
+      <span class="num">3</span><span>Cocurrent</span><span class="play"></span>
+    </button>
+  </div>
+
+  <section class="player" id="player" hidden aria-live="polite">
+    <div class="player-head">
+      <span id="player-title"></span>
+      <button class="close" id="close" aria-label="Close video">Close ✕</button>
+    </div>
+    <video id="video" controls playsinline preload="metadata"></video>
+    <div class="soon" id="soon" hidden>This video is coming soon.</div>
+  </section>
+
+</main>
+
+  <aside class="facts-left" aria-label="Fun facts">
+    <p class="facts-heading">Fun facts</p>
+    <div class="facts">
+      <article class="fact"><span class="tag">Fun fact 1</span>
+        <h2>It's a pipe inside a pipe</h2>
+        <p>It's the simplest heat exchanger there is. One fluid runs through the inner pipe, and the other flows through the gap around it, called the <b>annulus</b>.</p></article>
+      <article class="fact"><span class="tag">Fun fact 2</span>
+        <h2>Hairpins save space</h2>
+        <p>Bending the pipes into U-shaped "hairpins" fits a long flow path into a small frame, like the U-bends on this unit.</p></article>
+      <article class="fact"><span class="tag">Fun fact 3</span>
+        <h2>True counterflow</h2>
+        <p>It's one of the few exchangers that gets <b>pure</b> countercurrent flow, so its LMTD design needs no correction factor.</p></article>
+    </div>
+  </aside>
+
+  <aside class="facts-right" aria-label="More fun facts">
+    <p class="facts-heading" aria-hidden="true">Fun facts</p>
+    <div class="facts">
+      <article class="fact"><span class="tag">Fun fact 4</span>
+        <h2>The temperature cross</h2>
+        <p>In counterflow, the cold fluid can leave <b>hotter</b> than the hot fluid leaves. In cocurrent flow, that can't happen.</p></article>
+      <article class="fact"><span class="tag">Fun fact 5</span>
+        <h2>Built for pressure</h2>
+        <p>Small-diameter pipes hold high pressures well, and the parts come apart easily for cleaning.</p></article>
+      <article class="fact"><span class="tag">Fun fact 6</span>
+        <h2>Wrapped for a reason</h2>
+        <p>The foil insulation on this unit keeps heat from escaping into the air, so more of it goes into the other fluid.</p></article>
+    </div>
+  </aside>
+
+  <footer>Bicol University · Chemical Engineering Department</footer>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll('.btn');
+  const player = document.getElementById('player');
+  const title = document.getElementById('player-title');
+  const video = document.getElementById('video');
+  const soon = document.getElementById('soon');
+
+  video.addEventListener('error', () => { video.hidden = true; soon.hidden = false; });
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+      title.textContent = btn.querySelector('span:nth-child(2)').textContent;
+      soon.hidden = true;
+      video.hidden = false;
+      video.src = btn.dataset.video;
+      player.hidden = false;
+      video.load();
+      const p = video.play();
+      if (p && p.catch) p.catch(() => {});
+      player.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  document.getElementById('close').addEventListener('click', () => {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    player.hidden = true;
+    buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+  });
+</script>
+</body>
+</html>

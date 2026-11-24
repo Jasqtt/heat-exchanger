@@ -443,6 +443,25 @@
   // browsers also expose the <canvas id="hx3d"> under that name.)
   const viewer = () => (window.HX3D && typeof window.HX3D.setMode === 'function') ? window.HX3D : null;
 
+  // The 3D model can take a few seconds to download on a phone. Keep the
+  // "See it in 3D" button available while it loads, and hide it only if 3D fails.
+  let state3d = viewer() ? 'ready' : 'loading';
+  let pending3d = false;
+  const to3d = document.getElementById('to3d');
+  const to3dLabel = to3d.innerHTML;
+  function updateActions() {
+    actions.hidden = !(current && current.dataset.mode && state3d !== 'failed');
+    to3d.disabled = pending3d;
+    to3d.innerHTML = pending3d ? 'Loading 3D…' : to3dLabel;
+  }
+  window.addEventListener('hx3d-ready', () => {
+    state3d = 'ready';
+    if (pending3d) { pending3d = false; if (current) show3D(current); }
+    updateActions();
+  });
+  window.addEventListener('hx3d-failed', () => { state3d = 'failed'; pending3d = false; updateActions(); });
+  setTimeout(() => { if (state3d === 'loading') { state3d = 'failed'; pending3d = false; updateActions(); } }, 30000);
+
   const FLOW = {
     counter: {
       title: 'Counterflow',
@@ -474,7 +493,8 @@
     soon.hidden = true;
     video.hidden = false;
     video.src = btn.dataset.video;
-    actions.hidden = !(btn.dataset.mode && viewer());
+    pending3d = false;
+    updateActions();
     player.hidden = false;
     video.load();
     const p = video.play();
@@ -496,7 +516,11 @@
 
   buttons.forEach(btn => btn.addEventListener('click', () => playVideo(btn)));
 
-  document.getElementById('to3d').addEventListener('click', () => { if (current) show3D(current); });
+  to3d.addEventListener('click', () => {
+    if (!current) return;
+    if (viewer()) show3D(current);
+    else { pending3d = true; updateActions(); }
+  });
 
   document.getElementById('flow-video').addEventListener('click', () => {
     showReal();
@@ -514,6 +538,8 @@
     player.hidden = true;
     showReal();
     setPressed(null);
+    pending3d = false;
+    updateActions();
   });
 </script>
 <script type="importmap">
@@ -522,6 +548,13 @@
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
 } }
 </script>
-<script type="module" src="js/hx3d.js"></script>
+<script type="module">
+  // Load the 3D model; if it (or three.js from the CDN) can't load, tell the page right away.
+  import('./js/hx3d.js').catch(err => {
+    console.error(err);
+    document.getElementById('hero3d').classList.add('no3d');
+    window.dispatchEvent(new Event('hx3d-failed'));
+  });
+</script>
 </body>
 </html>

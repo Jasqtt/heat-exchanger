@@ -9,7 +9,10 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 const wrap = document.getElementById('hero3d');
 const canvas = document.getElementById('hx3d');
 
-function fail() { wrap.classList.add('no3d'); }
+function fail() {
+  wrap.classList.add('no3d');
+  window.dispatchEvent(new Event('hx3d-failed'));
+}
 
 try {
   init();
@@ -447,6 +450,7 @@ function init() {
   });
   wrap.classList.add('ready');
   window.__hx3dReady = true;
+  window.dispatchEvent(new Event('hx3d-ready'));
 
   // ---------- helpers ----------
   function cyl(r1, r2, h, mat, seg = 20) {

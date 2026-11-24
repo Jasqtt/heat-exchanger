@@ -219,6 +219,65 @@
     .facts-right .fact:nth-child(odd)  { transform: rotate(1.2deg); }
     .facts-right .fact:nth-child(even) { transform: rotate(-1deg); }
   }
+
+  /* ---------- 3D viewer ---------- */
+  .hero3d {
+    position: relative;
+    display: block;
+    padding: 0;
+    height: min(58vh, 460px);
+    min-height: 300px;
+    overflow: hidden;
+  }
+  .hero3d canvas {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    opacity: 0; transition: opacity .5s;
+    cursor: grab;
+    touch-action: none;
+  }
+  .hero3d canvas:active { cursor: grabbing; }
+  .hero3d.ready canvas { opacity: 1; }
+  .hero3d .fallback {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    height: 88%; width: auto; max-width: 92%;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 14px rgba(74,74,74,.22));
+    transition: opacity .4s;
+  }
+  .hero3d.ready .fallback { opacity: 0; pointer-events: none; }
+  .hx3d-ui {
+    position: absolute; left: 10px; right: 10px; bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    pointer-events: none;
+  }
+  .hero3d:not(.ready) .hx3d-ui, .hero3d:not(.ready) .badge3d { display: none; }
+  .hint {
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.82);
+    font-size: 0.78rem; font-weight: 600;
+    transition: opacity .4s;
+  }
+  .hero3d.touched .hint { opacity: 0; }
+  .reset {
+    pointer-events: auto;
+    margin-left: auto;
+    border: 0; border-radius: 999px;
+    padding: 7px 12px;
+    background: var(--ink); color: #fff;
+    font: inherit; font-size: 0.78rem; font-weight: 600;
+    cursor: pointer;
+  }
+  .badge3d {
+    position: absolute; top: 10px; left: 10px;
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--rose);
+    font-size: 0.72rem; font-weight: 800; letter-spacing: .06em;
+    pointer-events: none;
+  }
 </style>
 </head>
 <body>
@@ -229,8 +288,14 @@
     <h1>Double Pipe Heat Exchanger.</h1>
   </header>
 
-  <div class="hero">
-    <img src="img/heat-exchanger.webp" alt="The department's double pipe heat exchanger, seen from above">
+  <div class="hero hero3d" id="hero3d">
+    <img class="fallback" src="img/heat-exchanger.webp" alt="The department's double pipe heat exchanger, seen from above">
+    <canvas id="hx3d" aria-label="Interactive 3D model of the double pipe heat exchanger. Drag to rotate, pinch or scroll to zoom."></canvas>
+    <div class="hx3d-ui">
+      <span class="hint">Drag to rotate · Pinch to zoom</span>
+      <button type="button" id="hx3d-reset" class="reset">Reset view</button>
+    </div>
+    <span class="badge3d">3D</span>
   </div>
 
   <p class="sub">Tap a topic to watch the video.</p>
@@ -323,5 +388,12 @@
     buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
   });
 </script>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="js/hx3d.js"></script>
 </body>
 </html>

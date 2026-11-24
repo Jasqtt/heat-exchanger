@@ -439,6 +439,9 @@
   const badge = document.getElementById('badge3d');
   const actions = document.getElementById('player-actions');
   let current = null;   // the topic button that's open
+  // The 3D script sets window.HX3D once the model is running. (Don't use window.hx3d:
+  // browsers also expose the <canvas id="hx3d"> under that name.)
+  const viewer = () => (window.HX3D && typeof window.HX3D.setMode === 'function') ? window.HX3D : null;
 
   const FLOW = {
     counter: {
@@ -458,7 +461,7 @@
     buttons.forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
   }
   function showReal() {
-    if (window.hx3d) window.hx3d.setMode('real');
+    if (viewer()) viewer().setMode('real');
     info.hidden = true;
     badge.textContent = '3D';
   }
@@ -471,7 +474,7 @@
     soon.hidden = true;
     video.hidden = false;
     video.src = btn.dataset.video;
-    actions.hidden = !(btn.dataset.mode && window.hx3d);
+    actions.hidden = !(btn.dataset.mode && viewer());
     player.hidden = false;
     video.load();
     const p = video.play();
@@ -482,7 +485,8 @@
   function show3D(btn) {
     const m = btn.dataset.mode;
     video.pause();
-    window.hx3d.setMode(m);
+    if (!viewer()) return;
+    viewer().setMode(m);
     document.getElementById('flow-title').textContent = FLOW[m].title + ' in 3D';
     document.getElementById('flow-text').textContent = FLOW[m].text;
     badge.textContent = '3D · ' + FLOW[m].title.split(' ')[0];

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const wrap = document.getElementById('hero3d');
 const canvas = document.getElementById('hx3d');
@@ -65,6 +66,8 @@ function init() {
 
   const model = new THREE.Group();
   scene.add(model);
+  const realGroup = new THREE.Group();   // foil-wrapped look (hidden in flow mode)
+  model.add(realGroup);
 
   // ---------- dimensions (metres) ----------
   const R = 1.25;          // half length of the straight runs
@@ -101,7 +104,7 @@ function init() {
   foil.repeat.set(pathLen / 0.22, 1);
   const serp = new THREE.Mesh(new THREE.TubeGeometry(path, 900, rIn, 24, false), foilMat);
   serp.castShadow = true; serp.receiveShadow = true;
-  model.add(serp);
+  realGroup.add(serp);
 
   // ---------- outer pipes (thicker insulated sleeves on the straights) ----------
   const sleeveLen = 2 * R - 0.24;
@@ -116,14 +119,14 @@ function init() {
     m.rotation.z = Math.PI / 2;
     m.position.set(0, Y0, z);
     m.castShadow = true; m.receiveShadow = true;
-    model.add(m);
+    realGroup.add(m);
     // tapered collars where the outer pipe meets the bend
     [-1, 1].forEach(s => {
       const c = new THREE.Mesh(new THREE.CylinderGeometry(rIn, rOut, 0.05, 28), sleeveMat);
       c.rotation.z = -s * Math.PI / 2;
       c.position.set(s * (sleeveLen / 2 + 0.025), Y0, z);
       c.castShadow = true;
-      model.add(c);
+      realGroup.add(c);
     });
   });
 
@@ -136,12 +139,12 @@ function init() {
     t.rotation.x = Math.PI / 2;
     t.position.set(side * teeX, Y0, (z1 + z2) / 2);
     t.castShadow = true;
-    model.add(t);
+    realGroup.add(t);
     [z1, z2].forEach(z => {
       const ring = new THREE.Mesh(new THREE.CylinderGeometry(rOut + 0.008, rOut + 0.008, 0.07, 28), sleeveMat);
       ring.rotation.z = Math.PI / 2;
       ring.position.set(side * teeX, Y0, z);
-      model.add(ring);
+      realGroup.add(ring);
     });
   });
 
@@ -169,7 +172,7 @@ function init() {
   {
     const z = rowZ[4];
     const taper = new THREE.Mesh(new THREE.CylinderGeometry(rIn, 0.024, 0.16, 24), foilMat);
-    taper.rotation.z = Math.PI / 2; taper.position.set(-R - 0.08, Y0, z); taper.castShadow = true; model.add(taper);
+    taper.rotation.z = Math.PI / 2; taper.position.set(-R - 0.08, Y0, z); taper.castShadow = true; realGroup.add(taper);
     const tip = cyl(0.019, 0.019, 0.03, red); tip.rotation.z = Math.PI / 2; tip.position.set(-R - 0.17, Y0, z); model.add(tip);
     const px = -R + 0.12;
     const union = cyl(0.026, 0.026, 0.09, galv); union.rotation.x = Math.PI / 2; union.position.set(px, Y0, z + rOut + 0.04); model.add(union);
@@ -198,6 +201,115 @@ function init() {
   });
   bar([-SX, 0.26, 0], [SX, 0.26, 0], t);                                   // bottom stretcher
 
+
+  // =====================================================================
+  // FLOW MODE: see-through pipes with animated hot (annulus) and cold (inner) water
+  // =====================================================================
+  const flowGroup = new THREE.Group();
+  flowGroup.visible = false;
+  model.add(flowGroup);
+
+  const chevron = chevronTexture();
+  const FLOW_PERIOD = 0.12;           // metres per arrow
+  const FLOW_SPEED = 0.32;            // metres per second (visual)
+
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, metalness: 0.1, roughness: 0.08, transparent: true, opacity: 0.16, depthWrite: false,
+  });
+  const glassEdgeMat = new THREE.MeshStandardMaterial({ color: 0xdfe5ea, metalness: 0.6, roughness: 0.3 });
+
+  // Cold water: inner pipe, through the U-bends (row 0 right end → row 4 left end)
+  const coldPath = new THREE.CurvePath();
+  coldPath.add(new THREE.LineCurve3(P(R + 0.14, rowZ[0]), P(R, rowZ[0])));
+  path.curves.forEach(c => coldPath.add(c));
+  coldPath.add(new THREE.LineCurve3(P(-R, rowZ[4]), P(-R - 0.17, rowZ[4])));
+
+  // Hot water: annulus, through the crossover tees (row 0 blue-valve port → row 4 side port)
+  const hotPts = [
+    P(R - 0.1, rowZ[0] - rOut - 0.1), P(R - 0.1, rowZ[0]),
+    P(-teeX, rowZ[0]), P(-teeX, rowZ[1]),
+    P(teeX, rowZ[1]), P(teeX, rowZ[2]),
+    P(-teeX, rowZ[2]), P(-teeX, rowZ[3]),
+    P(teeX, rowZ[3]), P(teeX, rowZ[4]),
+    P(-R + 0.12, rowZ[4]), P(-R + 0.12, rowZ[4] + rOut + 0.1),
+  ];
+  const hotFwd = roundedPath(hotPts, 0.045);
+  const hotRev = roundedPath([...hotPts].reverse(), 0.045);
+
+  // colour ramps (inlet → outlet)
+  const COLD_IN = new THREE.Color(0x1d6fe0), COLD_OUT = new THREE.Color(0x8a7cf0);
+  const HOT_IN = new THREE.Color(0xe0262f), HOT_OUT = new THREE.Color(0xff9a5c);
+
+  function flowTube(curve, radius, cIn, cOut, opts = {}) {
+    const len = curve.getLength();
+    const geo = new THREE.TubeGeometry(curve, Math.max(200, Math.round(len * 120)), radius, 18, false);
+    const uv = geo.attributes.uv, n = uv.count;
+    const col = new Float32Array(n * 3), tmp = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      tmp.copy(cIn).lerp(cOut, uv.getX(i));
+      col.set([tmp.r, tmp.g, tmp.b], i * 3);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const tex = chevron.clone();
+    tex.needsUpdate = true;
+    tex.repeat.set(len / FLOW_PERIOD, 1);
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true, map: tex, roughness: 0.3, metalness: 0.05,
+      transparent: !!opts.opacity, opacity: opts.opacity || 1, depthWrite: !opts.opacity,
+      emissive: 0x111111,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.tex = tex;
+    mesh.userData.len = len;
+    return mesh;
+  }
+
+  const coldMesh = flowTube(coldPath, 0.021, COLD_IN, COLD_OUT);
+  coldMesh.renderOrder = 0;
+  flowGroup.add(coldMesh);
+
+  const hotCo = flowTube(hotFwd, 0.04, HOT_IN, HOT_OUT, { opacity: 0.74 });
+  const hotCounter = flowTube(hotRev, 0.04, HOT_IN, HOT_OUT, { opacity: 0.74 });
+  [hotCo, hotCounter].forEach(m => { m.renderOrder = 1; flowGroup.add(m); });
+
+  // clear outer shells so the water inside is visible
+  rowZ.forEach(z => {
+    const g = new THREE.Mesh(new THREE.CylinderGeometry(rOut, rOut, sleeveLen, 32, 1, true), glassMat);
+    g.rotation.z = Math.PI / 2; g.position.set(0, Y0, z); g.renderOrder = 2;
+    flowGroup.add(g);
+    [-1, 1].forEach(sd => {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(rOut, 0.004, 8, 32), glassEdgeMat);
+      ring.rotation.y = Math.PI / 2; ring.position.set(sd * sleeveLen / 2, Y0, z);
+      flowGroup.add(ring);
+    });
+  });
+  // thin clear sleeve around the inner pipe where it runs through the U-bends
+  const bendGlass = new THREE.Mesh(new THREE.TubeGeometry(path, 900, 0.027, 16, false), glassMat);
+  bendGlass.renderOrder = 2;
+  flowGroup.add(bendGlass);
+
+  // in / out labels
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.domElement.className = 'hx3d-labels';
+  wrap.appendChild(labelRenderer.domElement);
+  function label(cls) {
+    const el = document.createElement('div');
+    el.className = 'flow-label ' + cls;
+    const obj = new CSS2DObject(el);
+    flowGroup.add(obj);
+    return { el, obj };
+  }
+  const L = {
+    coldIn: label('cold'), coldOut: label('cold'),
+    hotA: label('hot'), hotB: label('hot'),
+  };
+  L.coldIn.obj.position.set(R + 0.3, Y0 + 0.12, rowZ[0] + 0.05);
+  L.coldOut.obj.position.set(-R - 0.3, Y0 + 0.12, rowZ[4] - 0.05);
+  L.hotA.obj.position.set(R - 0.2, Y0 + 0.3, rowZ[0] - 0.3);      // blue-valve port (row 0)
+  L.hotB.obj.position.set(-R + 0.2, Y0 + 0.3, rowZ[4] + 0.3);    // side port (row 4)
+  L.coldIn.el.textContent = 'Cold water in';
+  L.coldOut.el.textContent = 'Cold water out';
+
   // ---------- ground shadow ----------
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.ShadowMaterial({ opacity: 0.16 }));
   ground.rotation.x = -Math.PI / 2;
@@ -216,7 +328,10 @@ function init() {
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.9;
 
-  const home = { az: 0.95, pol: 1.05 };    // default viewing angle (radians)
+  const home = { az: 0.95, pol: 1.05 };
+  const FLOW_VIEW_WIDE = { az: 0.42, pol: 0.78, d: 1.1 };
+  const FLOW_VIEW_TALL = { az: 1.3, pol: 0.86, d: 1.02 };   // portrait phones: pipes run toward the viewer
+  const flowView = () => (canvas.clientWidth / Math.max(canvas.clientHeight, 1) < 0.95 ? FLOW_VIEW_TALL : FLOW_VIEW_WIDE);    // default viewing angle (radians)
   function fitDistance() {
     const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
     const vfov = THREE.MathUtils.degToRad(camera.fov);
@@ -242,15 +357,55 @@ function init() {
   });
   controls.addEventListener('end', () => {
     clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => { controls.autoRotate = true; }, 6000);
+    idleTimer = setTimeout(() => { if (mode === 'real') controls.autoRotate = true; }, 6000);
   });
+  controls.addEventListener('start', () => { tween = null; });
 
   const resetBtn = document.getElementById('hx3d-reset');
   if (resetBtn) resetBtn.addEventListener('click', () => {
-    controls.target.copy(target);
-    placeCamera();
-    controls.autoRotate = true;
+    const flow = mode !== 'real';
+    flyTo(flow ? flowView().az : home.az, flow ? flowView().pol : home.pol, flow ? flowView().d : 1);
+    controls.autoRotate = !flow;
   });
+
+
+  // ---------- modes ----------
+  let mode = 'real';
+  let tween = null;
+  function flyTo(az, pol, distScale = 1) {
+    const d = fitDistance() * distScale;
+    const to = new THREE.Vector3(
+      target.x + d * Math.sin(pol) * Math.sin(az),
+      target.y + d * Math.cos(pol),
+      target.z + d * Math.sin(pol) * Math.cos(az),
+    );
+    tween = { from: camera.position.clone(), fromT: controls.target.clone(), to, t: 0 };
+  }
+  function setMode(m) {
+    mode = m;
+    const flow = m === 'counter' || m === 'co';
+    realGroup.visible = !flow;
+    flowGroup.visible = flow;
+    hotCo.visible = m === 'co';
+    hotCounter.visible = m === 'counter';
+    if (m === 'counter') {
+      L.hotA.el.textContent = 'Hot water out';
+      L.hotB.el.textContent = 'Hot water in';
+    } else if (m === 'co') {
+      L.hotA.el.textContent = 'Hot water in';
+      L.hotB.el.textContent = 'Hot water out';
+    }
+    wrap.classList.toggle('flow', flow);
+    [steelRed, hoseMat].forEach(mt => {
+      mt.transparent = flow || mt === hoseMat;
+      mt.opacity = flow ? (mt === steelRed ? 0.22 : 0.3) : (mt === hoseMat ? 0.95 : 1);
+      mt.depthWrite = !flow;
+      mt.needsUpdate = true;
+    });
+    controls.autoRotate = !flow;
+    flyTo(flow ? flowView().az : home.az, flow ? flowView().pol : home.pol, flow ? flowView().d : 1);
+  }
+  window.HX3D = { setMode, get mode() { return mode; } };
 
   // ---------- sizing + render loop ----------
   let lastW = 0, lastH = 0, placed = false;
@@ -259,6 +414,7 @@ function init() {
     if (w === lastW && h === lastH) return;
     lastW = w; lastH = h;
     renderer.setSize(w, h, false);
+    labelRenderer.setSize(w, h);
     camera.aspect = w / Math.max(h, 1);
     camera.updateProjectionMatrix();
     if (!placed) { placeCamera(); placed = true; }
@@ -269,11 +425,25 @@ function init() {
     new IntersectionObserver(es => { visible = es[0].isIntersecting; }).observe(wrap);
   }
 
+  const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
+    const dt = Math.min(clock.getDelta(), 0.05);
     if (!visible) return;
     resize();
+    if (tween) {
+      tween.t = Math.min(1, tween.t + dt / 0.9);
+      const e = tween.t < 0.5 ? 2 * tween.t * tween.t : 1 - Math.pow(-2 * tween.t + 2, 2) / 2;
+      camera.position.lerpVectors(tween.from, tween.to, e);
+      controls.target.lerpVectors(tween.fromT, target, e);
+      if (tween.t >= 1) tween = null;
+    }
+    if (flowGroup.visible) {
+      const step = (FLOW_SPEED * dt) / FLOW_PERIOD;
+      [coldMesh, hotCo, hotCounter].forEach(m => { if (m.visible) m.userData.tex.offset.x -= step; });
+    }
     controls.update();
     renderer.render(scene, camera);
+    if (flowGroup.visible) labelRenderer.render(scene, camera);
   });
   wrap.classList.add('ready');
   window.__hx3dReady = true;
@@ -309,6 +479,47 @@ function init() {
       uv.setXY(i, v, u);
     }
   }
+}
+
+// Polyline with rounded corners (for the annulus route through the tees).
+function roundedPath(pts, r) {
+  const cp = new THREE.CurvePath();
+  let start = pts[0].clone();
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = pts[i - 1], b = pts[i], c = pts[i + 1];
+    const d1 = new THREE.Vector3().subVectors(b, a), d2 = new THREE.Vector3().subVectors(c, b);
+    const rr = Math.min(r, d1.length() / 2, d2.length() / 2);
+    const p1 = b.clone().addScaledVector(d1.normalize(), -rr);
+    const p2 = b.clone().addScaledVector(d2.normalize(), rr);
+    if (start.distanceTo(p1) > 1e-6) cp.add(new THREE.LineCurve3(start, p1));
+    cp.add(new THREE.QuadraticBezierCurve3(p1, b.clone(), p2));
+    start = p2;
+  }
+  cp.add(new THREE.LineCurve3(start, pts[pts.length - 1].clone()));
+  return cp;
+}
+
+// Light arrow (chevron) stripes; multiplied with the water colour and scrolled to show flow.
+function chevronTexture() {
+  const W = 128, H = 64;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#9c9c9c';
+  g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 14;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  // arrow pointing in +u (to the right in texture space)
+  g.beginPath();
+  g.moveTo(44, 6); g.lineTo(82, H / 2); g.lineTo(44, H - 6);
+  g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
 }
 
 // Crinkled foil-tape texture, drawn on a canvas: wrinkles plus tape seams.

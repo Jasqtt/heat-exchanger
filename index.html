@@ -278,6 +278,60 @@
     font-size: 0.72rem; font-weight: 800; letter-spacing: .06em;
     pointer-events: none;
   }
+
+  /* ---------- flow mode ---------- */
+  .hx3d-labels { position: absolute !important; top: 0; left: 0; pointer-events: none; }
+  .hero3d:not(.flow) .hx3d-labels { display: none; }
+  .flow-label {
+    padding: 4px 9px;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.72rem; font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 3px 8px rgba(0,0,0,.18);
+  }
+  .flow-label.cold { background: #1d6fe0; }
+  @media (max-width: 480px) { .flow-label { font-size: 0.66rem; padding: 3px 7px; } }
+  .flow-label.hot  { background: #d8262f; }
+  .flowinfo {
+    margin: -8px 0 18px;
+    padding: 14px 16px 16px;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1.5px solid var(--peach);
+  }
+  .flowinfo[hidden] { display: none; }
+  .flowinfo h2 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 800; }
+  .flowinfo p { margin: 0 0 10px; font-size: 0.92rem; line-height: 1.45; color: #5d5456; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; font-size: 0.82rem; font-weight: 600; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .swatch { width: 26px; height: 10px; border-radius: 6px; display: inline-block; }
+  .swatch.hot  { background: linear-gradient(90deg, #e0262f, #ff9a5c); }
+  .swatch.cold { background: linear-gradient(90deg, #1d6fe0, #8a7cf0); }
+  .player-actions {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 12px 14px;
+    background: var(--blush);
+    border-top: 1px solid var(--peach);
+    font-size: 0.88rem; font-weight: 600;
+  }
+  .player-actions[hidden] { display: none; }
+  .to3d {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 0; border-radius: 999px;
+    padding: 9px 16px;
+    background: var(--ink); color: #fff;
+    font: inherit; font-size: 0.88rem; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(74,74,74,.2);
+  }
+  .to3d .cube { color: var(--rose); }
+  .flow-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .back {
+    border: 1.5px solid var(--ink); background: transparent; color: var(--ink);
+    border-radius: 999px; padding: 7px 14px;
+    font: inherit; font-size: 0.85rem; font-weight: 700; cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -295,19 +349,33 @@
       <span class="hint">Drag to rotate · Pinch to zoom</span>
       <button type="button" id="hx3d-reset" class="reset">Reset view</button>
     </div>
-    <span class="badge3d">3D</span>
+    <span class="badge3d" id="badge3d">3D</span>
   </div>
 
+
+  <section class="flowinfo" id="flowinfo" hidden aria-live="polite">
+    <h2 id="flow-title"></h2>
+    <p id="flow-text"></p>
+    <div class="legend">
+      <span><i class="swatch hot"></i>Hot water · outer pipe</span>
+      <span><i class="swatch cold"></i>Cold water · inner pipe</span>
+    </div>
+    <p style="font-size:.82rem;margin-bottom:12px">Arrows show which way the water moves. Colors fade as the hot water cools down and the cold water warms up.</p>
+    <div class="flow-actions">
+      <button type="button" class="to3d" id="flow-video">▶ Watch the video</button>
+      <button type="button" class="back" id="flow-back">Back to the real look</button>
+    </div>
+  </section>
   <p class="sub">Tap a topic to watch the video.</p>
 
   <div class="buttons" role="group" aria-label="Videos">
     <button class="btn" data-video="videos/how-it-works.mp4" aria-pressed="false">
       <span class="num">1</span><span>How does this work?</span><span class="play"></span>
     </button>
-    <button class="btn" data-video="videos/counterflow.mp4" aria-pressed="false">
+    <button class="btn" data-mode="counter" data-video="videos/counterflow.mp4" aria-pressed="false">
       <span class="num">2</span><span>Counterflow</span><span class="play"></span>
     </button>
-    <button class="btn" data-video="videos/cocurrent.mp4" aria-pressed="false">
+    <button class="btn" data-mode="co" data-video="videos/cocurrent.mp4" aria-pressed="false">
       <span class="num">3</span><span>Cocurrent</span><span class="play"></span>
     </button>
   </div>
@@ -319,6 +387,10 @@
     </div>
     <video id="video" controls playsinline preload="metadata"></video>
     <div class="soon" id="soon" hidden>This video is coming soon.</div>
+    <div class="player-actions" id="player-actions" hidden>
+      <span>Want to look around it?</span>
+      <button type="button" class="to3d" id="to3d"><span class="cube" aria-hidden="true">◆</span> See it in 3D</button>
+    </div>
   </section>
 
 </main>
@@ -362,30 +434,82 @@
   const title = document.getElementById('player-title');
   const video = document.getElementById('video');
   const soon = document.getElementById('soon');
+  const hero = document.getElementById('hero3d');
+  const info = document.getElementById('flowinfo');
+  const badge = document.getElementById('badge3d');
+  const actions = document.getElementById('player-actions');
+  let current = null;   // the topic button that's open
+
+  const FLOW = {
+    counter: {
+      title: 'Counterflow',
+      text: 'The hot and cold water move in opposite directions. The coldest water meets the hottest water at each end, so the temperature difference stays large along the whole pipe, and the cold water can leave warmer than the hot water leaves.'
+    },
+    co: {
+      title: 'Cocurrent (parallel flow)',
+      text: 'The hot and cold water enter at the same end and move in the same direction. The temperature difference is biggest at the inlet and shrinks along the pipe, so the cold water can never leave warmer than the hot water.'
+    }
+  };
 
   video.addEventListener('error', () => { video.hidden = true; soon.hidden = false; });
 
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      buttons.forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
-      title.textContent = btn.querySelector('span:nth-child(2)').textContent;
-      soon.hidden = true;
-      video.hidden = false;
-      video.src = btn.dataset.video;
-      player.hidden = false;
-      video.load();
-      const p = video.play();
-      if (p && p.catch) p.catch(() => {});
-      player.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  function setPressed(btn) {
+    current = btn;
+    buttons.forEach(b => b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'));
+  }
+  function showReal() {
+    if (window.hx3d) window.hx3d.setMode('real');
+    info.hidden = true;
+    badge.textContent = '3D';
+  }
+
+  // Every topic opens its video. Flow topics also offer the 3D view.
+  function playVideo(btn) {
+    showReal();
+    setPressed(btn);
+    title.textContent = btn.querySelector('span:nth-child(2)').textContent;
+    soon.hidden = true;
+    video.hidden = false;
+    video.src = btn.dataset.video;
+    actions.hidden = !(btn.dataset.mode && window.hx3d);
+    player.hidden = false;
+    video.load();
+    const p = video.play();
+    if (p && p.catch) p.catch(() => {});
+    player.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function show3D(btn) {
+    const m = btn.dataset.mode;
+    video.pause();
+    window.hx3d.setMode(m);
+    document.getElementById('flow-title').textContent = FLOW[m].title + ' in 3D';
+    document.getElementById('flow-text').textContent = FLOW[m].text;
+    badge.textContent = '3D · ' + FLOW[m].title.split(' ')[0];
+    info.hidden = false;
+    hero.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  buttons.forEach(btn => btn.addEventListener('click', () => playVideo(btn)));
+
+  document.getElementById('to3d').addEventListener('click', () => { if (current) show3D(current); });
+
+  document.getElementById('flow-video').addEventListener('click', () => {
+    showReal();
+    player.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const p = video.play();
+    if (p && p.catch) p.catch(() => {});
   });
+
+  document.getElementById('flow-back').addEventListener('click', showReal);
 
   document.getElementById('close').addEventListener('click', () => {
     video.pause();
     video.removeAttribute('src');
     video.load();
     player.hidden = true;
-    buttons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+    showReal();
+    setPressed(null);
   });
 </script>
 <script type="importmap">
